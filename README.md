@@ -14,8 +14,26 @@ A command-line tool that converts Python dict literals to JSON.
 ## Installation
 
 ```bash
+# Build for current platform
+make
+
+# Or use go directly
 go build -o pydict2json .
 ```
+
+### Cross-Compilation
+
+```bash
+make linux/amd64          # Linux x86_64
+make linux/arm64          # Linux ARM64
+make darwin/amd64         # macOS Intel
+make darwin/arm64         # macOS Apple Silicon
+make windows/amd64        # Windows x86_64
+make windows/arm64        # Windows ARM64
+make dist                 # Build all targets at once
+```
+
+Binaries are output to `dist/<os>-<arch>/`. Windows binaries include the `.exe` suffix.
 
 ## Usage
 

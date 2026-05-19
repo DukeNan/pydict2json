@@ -5,15 +5,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Build & Run
 
 ```bash
-go build -o pydict2json .        # Build
-go run . "{'key': 'val'}"        # Run directly
+make                              # Build for current platform
+make run                          # Build and run with args
+make linux/amd64                  # Cross-compile single target
+make dist                         # Cross-compile all targets
+make clean                        # Remove build artifacts
 
-# Usage
-echo "{'a': 1}" | ./pydict2json
-pydict2json -f input.py -o output.json
-pydict2json "{'a': [1, True], 'b': None}"
-pydict2json -c "{'a': 1}"       # Compact output
+# Or use go directly
+go build -o pydict2json .
+go run . "{'key': 'val'}"
 ```
+
+Cross-compilation outputs go to `dist/<os>-<arch>/`. Windows binaries get `.exe` suffix.
 
 No test files, no lint config.
 
