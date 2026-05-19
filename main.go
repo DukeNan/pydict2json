@@ -93,7 +93,11 @@ func (p *Parser) Parse() (interface{}, error) {
 		return p.parseFalse()
 	case c == 'N':
 		return p.parseNone()
-	case c == '-' || (c >= '0' && c <= '9'):
+	case c == 'd':
+		return p.parseDatetime()
+	case c == '-':
+		return p.parseNumber()
+	case c >= '0' && c <= '9':
 		return p.parseNumber()
 	default:
 		return nil, fmt.Errorf("unexpected character '%c' at position %d: ...%s...", c, p.pos, p.context())
@@ -317,6 +321,178 @@ func (p *Parser) parseNone() (interface{}, error) {
 		return nil, nil
 	}
 	return nil, fmt.Errorf("expected 'None' at position %d", p.pos)
+}
+
+func (p *Parser) parseDatetime() (interface{}, error) {
+	p.skipWhitespace()
+
+	datetimePrefix := "datetime.datetime"
+	datePrefix := "datetime.date"
+	timePrefix := "datetime.time"
+
+	if p.pos+len(datetimePrefix) <= len(p.input) && string(p.input[p.pos:p.pos+len(datetimePrefix)]) == datetimePrefix {
+		p.pos += len(datetimePrefix)
+		args, err := p.parseCallArgs()
+		if err != nil {
+			return nil, fmt.Errorf("datetime.datetime: %w", err)
+		}
+		return formatDatetime(args)
+	}
+	if p.pos+len(datePrefix) <= len(p.input) && string(p.input[p.pos:p.pos+len(datePrefix)]) == datePrefix {
+		p.pos += len(datePrefix)
+		args, err := p.parseCallArgs()
+		if err != nil {
+			return nil, fmt.Errorf("datetime.date: %w", err)
+		}
+		if len(args) < 3 {
+			return nil, fmt.Errorf("datetime.date requires at least 3 args (year, month, day)")
+		}
+		return fmt.Sprintf("%04d-%02d-%02d", toInt(args[0]), toInt(args[1]), toInt(args[2])), nil
+	}
+	if p.pos+len(timePrefix) <= len(p.input) && string(p.input[p.pos:p.pos+len(timePrefix)]) == timePrefix {
+		p.pos += len(timePrefix)
+		args, err := p.parseCallArgs()
+		if err != nil {
+			return nil, fmt.Errorf("datetime.time: %w", err)
+		}
+		return formatTime(args), nil
+	}
+	return nil, fmt.Errorf("unexpected 'd' at position %d", p.pos)
+}
+
+func (p *Parser) parseCallArgs() ([]interface{}, error) {
+	if err := p.consume('('); err != nil {
+		return nil, err
+	}
+	var args []interface{}
+
+	p.skipWhitespace()
+	if p.pos < len(p.input) && p.input[p.pos] == ')' {
+		p.pos++
+		return args, nil
+	}
+
+	for {
+		// skip keyword arguments (e.g. tzinfo=...)
+		p.skipWhitespace()
+		saved := p.pos
+		val, err := p.Parse()
+		if err != nil {
+			// might be a keyword arg like tzinfo=UTC — skip it
+			p.pos = saved
+			if err := p.skipKeywordArg(); err != nil {
+				return nil, err
+			}
+		} else {
+			// check if this was actually a keyword arg: value followed by '='
+			p.skipWhitespace()
+			if p.pos < len(p.input) && p.input[p.pos] == '=' {
+				p.pos = saved
+				if err := p.skipKeywordArg(); err != nil {
+					return nil, err
+				}
+			} else {
+				args = append(args, val)
+			}
+		}
+
+		p.skipWhitespace()
+		if p.pos >= len(p.input) {
+			return nil, fmt.Errorf("unterminated call args")
+		}
+		if p.input[p.pos] == ')' {
+			p.pos++
+			break
+		}
+		if p.input[p.pos] == ',' {
+			p.pos++
+			p.skipWhitespace()
+			if p.pos < len(p.input) && p.input[p.pos] == ')' {
+				p.pos++
+				break
+			}
+		}
+	}
+	return args, nil
+}
+
+func (p *Parser) skipKeywordArg() error {
+	// skip identifier
+	for p.pos < len(p.input) && (isAlphaNum(p.input[p.pos]) || p.input[p.pos] == '_') {
+		p.pos++
+	}
+	p.skipWhitespace()
+	if p.pos >= len(p.input) || p.input[p.pos] != '=' {
+		return fmt.Errorf("expected '=' in keyword arg at position %d", p.pos)
+	}
+	p.pos++ // skip '='
+	p.skipWhitespace()
+	// skip the value — could be a number, string, None, True, False, or a nested call
+	_, err := p.Parse()
+	return err
+}
+
+func isAlphaNum(c rune) bool {
+	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')
+}
+
+func toInt(v interface{}) int {
+	switch n := v.(type) {
+	case int64:
+		return int(n)
+	case float64:
+		return int(n)
+	default:
+		return 0
+	}
+}
+
+func formatDatetime(args []interface{}) (string, error) {
+	if len(args) < 3 {
+		return "", fmt.Errorf("datetime.datetime requires at least 3 args")
+	}
+	year := toInt(args[0])
+	month := toInt(args[1])
+	day := toInt(args[2])
+	hour, min, sec := 0, 0, 0
+	var us int
+	if len(args) > 3 {
+		hour = toInt(args[3])
+	}
+	if len(args) > 4 {
+		min = toInt(args[4])
+	}
+	if len(args) > 5 {
+		sec = toInt(args[5])
+	}
+	if len(args) > 6 {
+		us = toInt(args[6])
+	}
+	if us > 0 {
+		return fmt.Sprintf("%04d-%02d-%02dT%02d:%02d:%02d.%06d", year, month, day, hour, min, sec, us), nil
+	}
+	return fmt.Sprintf("%04d-%02d-%02dT%02d:%02d:%02d", year, month, day, hour, min, sec), nil
+}
+
+func formatTime(args []interface{}) string {
+	hour, min, sec := 0, 0, 0
+	var us int
+	if len(args) > 0 {
+		hour = toInt(args[0])
+	}
+	if len(args) > 1 {
+		min = toInt(args[1])
+	}
+	if len(args) > 2 {
+		sec = toInt(args[2])
+	}
+	if len(args) > 3 {
+		us = toInt(args[3])
+	}
+	if us > 0 {
+		return fmt.Sprintf("%02d:%02d:%02d.%06d", hour, min, sec, us)
+	}
+	return fmt.Sprintf("%02d:%02d:%02d", hour, min, sec)
 }
 
 func (p *Parser) parseNumber() (interface{}, error) {
