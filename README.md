@@ -1,56 +1,62 @@
 # pydict2json
 
-将 Python dict 字面量转换为 JSON 的命令行工具。
+A command-line tool that converts Python dict literals to JSON.
 
-## 功能
+## Features
 
-- 解析 Python dict 语法，输出合法 JSON
-- 支持的类型：dict、list、tuple、str（单引号/双引号/三引号）、int、float（含科学计数法）、True、False、None
-- 保持 Python dict 的插入顺序
-- 支持嵌套结构
-- 支持尾逗号
+- Parses Python dict syntax and outputs valid JSON
+- Supported types: dict, list, tuple, str (single/double/triple-quoted), int, float (with scientific notation), True, False, None
+- Parses `datetime.datetime(...)`, `datetime.date(...)`, `datetime.time(...)` as ISO 8601 strings
+- Preserves Python dict insertion order
+- Supports nested structures
+- Supports trailing commas
 
-## 安装
+## Installation
 
 ```bash
 go build -o pydict2json .
 ```
 
-## 使用
+## Usage
 
 ```bash
-# 从 stdin 读取
+# Read from stdin
 echo "{'key': 'val', 'n': 42}" | pydict2json
 
-# 从文件读取
+# Read from file
 pydict2json -f data.py -o data.json
 
-# 命令行直接传入
+# Pass inline
 pydict2json "{'a': [1, 2, True], 'b': None}"
 
-# 紧凑输出
+# Compact output
 pydict2json -c "{'a': 1, 'b': 2}"
+
+# Datetime types
+pydict2json "{'ts': datetime.datetime(2024, 1, 15, 10, 30, 0)}"
+pydict2json "{'d': datetime.date(2024, 1, 15)}"
+pydict2json "{'t': datetime.time(10, 30, 0)}"
 ```
 
-## 选项
+## Options
 
-| 选项 | 默认值 | 说明 |
-|------|--------|------|
-| `-f <file>` | stdin | 输入文件 |
-| `-o <file>` | stdout | 输出文件 |
-| `-p` | true | 格式化输出（缩进） |
-| `-c` | false | 紧凑输出（覆盖 `-p`） |
-| `-h` | - | 显示帮助 |
+| Option | Default | Description |
+|--------|---------|-------------|
+| `-f <file>` | stdin | Input file |
+| `-o <file>` | stdout | Output file |
+| `-p` | true | Pretty-print output (indented) |
+| `-c` | false | Compact output (overrides `-p`) |
+| `-h` | — | Show help |
 
-## 示例
+## Examples
 
-输入：
+Input:
 
 ```python
 {'name': 'Alice', 'scores': [95.5, 88, 92], 'active': True, 'note': None}
 ```
 
-输出：
+Output:
 
 ```json
 {
@@ -61,7 +67,23 @@ pydict2json -c "{'a': 1, 'b': 2}"
 }
 ```
 
-## 类型映射
+Datetime input:
+
+```python
+{'created': datetime.datetime(2024, 1, 15, 10, 30, 0), 'birthday': datetime.date(2000, 6, 1), 'alarm': datetime.time(7, 0, 0)}
+```
+
+Output:
+
+```json
+{
+  "created": "2024-01-15T10:30:00",
+  "birthday": "2000-06-01",
+  "alarm": "07:00:00"
+}
+```
+
+## Type Mapping
 
 | Python | JSON |
 |--------|------|
@@ -74,3 +96,6 @@ pydict2json -c "{'a': 1, 'b': 2}"
 | True | true |
 | False | false |
 | None | null |
+| datetime.datetime(...) | string (ISO 8601) |
+| datetime.date(...) | string (ISO 8601) |
+| datetime.time(...) | string (ISO 8601) |
