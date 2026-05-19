@@ -693,7 +693,12 @@ SUPPORTED PYTHON TYPES:
 		}
 		inputData = string(bytes)
 	} else {
-		// Read from stdin
+		// Read from stdin — only if data is piped, not from a terminal
+		stat, _ := os.Stdin.Stat()
+		if (stat.Mode() & os.ModeCharDevice) != 0 {
+			fmt.Fprintln(os.Stderr, "Error: no input provided. Use -h for help.")
+			os.Exit(1)
+		}
 		buf := make([]byte, 0, 4096)
 		tmp := make([]byte, 512)
 		for {
